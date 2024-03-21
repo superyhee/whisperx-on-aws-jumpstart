@@ -82,7 +82,7 @@ def main():
 
     with tabs[0]:
         youtube_url = st.text_input("Enter YouTube URL")
-        language = st.text_input("Enter language code (e.g., en, fr, es)", key="youtube_language")
+        language = None
 
         transcribe_button = st.button("Transcribe",key="url")
 
@@ -95,7 +95,7 @@ def main():
 
     with tabs[1]:
         mp3_file = st.file_uploader("Upload MP3 File", type=["mp3"])
-        language = st.text_input("Enter language code (e.g., en, fr, es)", key="mp3_language")
+        language = None
         transcribe_mp3_button = st.button("Transcribe",key="mp3")
 
         if transcribe_mp3_button:
