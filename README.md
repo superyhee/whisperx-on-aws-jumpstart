@@ -70,10 +70,16 @@ to see the UI.
 
 ![图 6](images/output.png)
 
-- In the whisper directory, first stop the background service with
+- Stop the background service with
 
 ```
- sudo systemctl stop myapp.service,
+ sudo systemctl stop whisper.service,
+```
+
+- Start the background service with
+
+```
+ sudo systemctl start whisper,
 ```
 
 ##### UI Guide:
