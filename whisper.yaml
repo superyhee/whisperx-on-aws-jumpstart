@@ -103,6 +103,9 @@ Resources:
           # Setup environment  
           echo "HF_TOKEN=${HuggingFaceToken}" >> /home/ubuntu/whisper/.env
           echo "------Install Finished ------"
+          # Add permissions to whisper directory
+          sudo chown -R ubuntu:ubuntu /home/ubuntu/whisper/
+          sudo chmod -R 755 /home/ubuntu/whisper/
           # Create systemd service
           sudo tee /etc/systemd/system/whisper.service > /dev/null <<EOF
           [Unit]
@@ -110,7 +113,7 @@ Resources:
           After=network.target
           [Service]
           User=ubuntu
-          ExecStart=/usr/bin/streamlit run /home/ubuntu/whisper/ui.py
+          ExecStart=streamlit run /home/ubuntu/whisper/ui.py
           WorkingDirectory=/home/ubuntu/whisper
           Restart=always
           [Install]
