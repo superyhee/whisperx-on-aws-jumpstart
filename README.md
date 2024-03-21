@@ -14,9 +14,9 @@ Through Cloudformation on AWS, create a VPC network environment with one click, 
 
 - Accept the user agreement for the following models (click through the links bellow and accept the terms):
 
-* [Segmentation](https://huggingface.co/pyannote/segmentation)
-* [Voice Activity Detection (VAD)](https://huggingface.co/pyannote/voice-activity-detection)
-* [Speaker Diarization](https://huggingface.co/pyannote/speaker-diarization-3.1).
+  1.  [Segmentation](https://huggingface.co/pyannote/segmentation)
+  1.  [Voice Activity Detection (VAD)](https://huggingface.co/pyannote/voice-activity-detection)
+  1.  [Speaker Diarization](https://huggingface.co/pyannote/speaker-diarization-3.1).
 
 - Create life EC2 keypair through AWS Console.
 
