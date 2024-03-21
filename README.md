@@ -73,13 +73,13 @@ to see the UI.
 - Stop the background service with
 
 ```
- sudo systemctl stop whisper.service,
+ sudo systemctl stop whisper.service
 ```
 
 - Start the background service with
 
 ```
- sudo systemctl start whisper,
+ sudo systemctl start whisper.service
 ```
 
 ##### UI Guide:
