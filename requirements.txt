@@ -1,0 +1,6 @@
+whisperx @ git+https://github.com/m-bain/whisperx.git
+python-dotenv==1.0.0
+yt-dlp==2023.10.13
+boto3==1.28.78
+torchvision==0.16.1
+streamlit

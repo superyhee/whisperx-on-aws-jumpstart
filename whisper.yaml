@@ -1,0 +1,173 @@
+Resources:
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: "10.0.0.0/16"
+      Tags:
+        - Key: Name
+          Value: "My VPC"
+
+  MyInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: "My IGW"
+
+  MyVPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref MyInternetGateway
+
+  MyPublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: "10.0.1.0/24"
+      VpcId: !Ref MyVPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: "My Public Subnet"
+
+  MyRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: "My Route Table"
+
+  MyDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: MyVPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref MyRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref MyInternetGateway
+
+  MySubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MyPublicSubnet
+      RouteTableId: !Ref MyRouteTable
+
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: "My Security Group"
+      GroupDescription: "My security group"
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
+
+  MyInstance:
+    Type: AWS::EC2::Instance
+    DeletionPolicy: Retain
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref InstanceAMI
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 100
+            VolumeType: gp3
+      "Tags" : [
+            {"Key" : "Name", "Value" : "whisper"},
+        ]
+      KeyName: !Ref KeyPairName
+      # SecurityGroupIds:
+      #   - !Ref MySecurityGroup
+      # SubnetId: !Ref MyPublicSubnet
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          AssociatePublicIpAddress: true
+          SubnetId: !Ref MyPublicSubnet
+          GroupSet:
+            - !Ref MySecurityGroup
+      UserData:
+        'Fn::Base64': !Sub |
+          #!/bin/bash
+          sudo apt update
+          sudo apt install -y python3-pip nvidia-driver-525 ffmpeg git
+          pip3 install torch numpy
+          sudo apt install -y nvidia-cuda-toolkit
+          git clone https://github.com/superyhee/whisper-on-ec2-jumpstart /home/ubuntu/whisper
+          cd /home/ubuntu/whisper
+          pip install -r requirements.txt
+          # Setup environment  
+          # echo "BUCKET=${BucketName}" >> /home/ubuntu/whisper/.env
+          echo "HF_TOKEN=${HuggingFaceToken}" >> /home/ubuntu/whisper/.env
+          echo "------Install Finished ------"
+          # Create systemd service
+          sudo tee /etc/systemd/system/whisper.service > /dev/null <<EOF
+          [Unit]
+          Description=Whisper Service
+          After=network.target
+          [Service]
+          User=ubuntu
+          ExecStart=/usr/bin/streamlit run /home/ubuntu/whisper/ui.py
+          WorkingDirectory=/home/ubuntu/whisper
+          Restart=always
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+          # Reload systemd and enable service
+          sudo systemctl daemon-reload
+          sudo systemctl enable whisper.service
+          # Start the service
+          sudo systemctl start whisper.service
+          sudo reboot
+  MyEIP:
+    Type: AWS::EC2::EIP
+
+  MyEIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      InstanceId: !Ref MyInstance
+      EIP: !Ref MyEIP
+
+Outputs:
+  ElasticIP:
+    Description: The Elastic IP address
+    Value: !Ref MyEIP
+    Export:
+      Name: MyElasticIP
+
+Parameters:
+  InstanceAMI:
+    Type: AWS::EC2::Image::Id
+    Description: ID of the AMI to use for the EC2 instance 
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of the SSH key pair to use for the EC2 instance   
+  InstanceType:
+    Type: String
+    Description: EC2 instance type
+    Default: g4dn.xlarge
+    AllowedValues:
+      - g4dn.xlarge
+      - g4dn.2xlarge
+      - g4dn.4xlarge
+      - g4dn.8xlarge
+      - g4dn.12xlarge
+      - g4dn.16xlarge
+      - g5.xlarge
+      - g5.2xlarge
+      - g5.4xlarge
+      - g5.8xlarge
+      - g5.12xlarge
+      - g5.24xlarge
+  # BucketName:
+  #   Type: String
+  #   Description: Name of the S3 bucket
+  HuggingFaceToken:
+    Type: String
+    Description: Hugging Face token for authentication
