@@ -64,8 +64,8 @@ Resources:
           ToPort: 22
           CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
-          FromPort: 5000
-          ToPort: 5000
+          FromPort: 8501
+          ToPort: 8501
           CidrIp: 0.0.0.0/0
 
   MyInstance:
@@ -96,14 +96,11 @@ Resources:
         'Fn::Base64': !Sub |
           #!/bin/bash
           sudo apt update
-          sudo apt install -y python3-pip nvidia-driver-525 ffmpeg git
-          pip3 install torch numpy
-          sudo apt install -y nvidia-cuda-toolkit
+          sudo apt install -y python3-pip nvidia-driver-525 ffmpeg git nvidia-cuda-toolkit
           git clone https://github.com/superyhee/whisper-on-ec2-jumpstart /home/ubuntu/whisper
           cd /home/ubuntu/whisper
-          pip install -r requirements.txt
+          pip3 install -r requirements.txt
           # Setup environment  
-          # echo "BUCKET=${BucketName}" >> /home/ubuntu/whisper/.env
           echo "HF_TOKEN=${HuggingFaceToken}" >> /home/ubuntu/whisper/.env
           echo "------Install Finished ------"
           # Create systemd service
@@ -165,9 +162,6 @@ Parameters:
       - g5.8xlarge
       - g5.12xlarge
       - g5.24xlarge
-  # BucketName:
-  #   Type: String
-  #   Description: Name of the S3 bucket
   HuggingFaceToken:
     Type: String
     Description: Hugging Face token for authentication
