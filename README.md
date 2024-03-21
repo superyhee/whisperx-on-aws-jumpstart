@@ -56,7 +56,7 @@ run nvidia-smi
 
 You should see the NVIDIA system management interface
 
-![图 8](images/2d0c7cd9c5c7f6b21bc385deb031dcdce85a11622284b7d21ae362942666008d.png)
+![图 8](images/nvidia.png)
 
 - Navigate to the whisper directory. The python3 ui.py service is already running by default. You can stop the service with sudo systemctl stop myapp.service.
 
@@ -76,10 +76,12 @@ to see the UI.
  sudo systemctl stop myapp.service,
 ```
 
-** UI：**
+##### UI Guide:
 
 - Auto download and transcribe youtube to text
+
   ![图 3](images/youtube_transcribe.png)
 
 - Upload mp3 and transcribe to text
+
   ![图 3](images/audio_transcribe.png)
