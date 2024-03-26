@@ -7,7 +7,8 @@ compute_type = "float16" # change to "int8" if low on GPU mem (may reduce accura
 
 # 3. Assign speaker labels
 # diarize_model = whisperx.DiarizationPipeline(use_auth_token=os.environ['HF_TOKEN'], device=device)
-diarize_model = whisperx.DiarizationPipeline("pyannote/speaker-diarization-3.1",use_auth_token=os.environ['HF_TOKEN'], device=device)
+
+diarize_model = whisperx.DiarizationPipeline("pyannote/speaker-diarization-3.1",use_auth_token="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", device=device)
 whisper_models = {}
 
 def convert_format(data):
