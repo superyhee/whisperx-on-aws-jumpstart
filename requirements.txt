@@ -5,3 +5,5 @@ boto3==1.28.78
 torchvision==0.16.1
 streamlit
 numpy
+fastapi
+uvicorn

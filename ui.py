@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-
+from bedrock_handler.summary_bedrock_handler import SummaryBedrockHandler
 load_dotenv()
 
 
@@ -65,7 +65,7 @@ def process(youtube_url, language):
     progress_text = "Transcribing audio..."
     progress_value = 70
     progress_bar.progress(progress_value, text=progress_text)
-    transcription = whisperx_transcribe.transcribe(audio_file_mp3, "medium", language=language)
+    transcription = whisperx_transcribe.transcribe(audio_file_mp3, "large", language=language)
     progress_text = "Transcribing completed..."
     progress_value = 100
     progress_bar.progress(progress_value, text=progress_text)
@@ -73,30 +73,37 @@ def process(youtube_url, language):
     # Remove temporary files
     os.remove(audio_file)
     os.remove(audio_file_mp3)
-
+    return transcription
 
 def main():
     st.title("Audio Transcription")
-
+    if 'transcription' not in st.session_state:
+        st.session_state.transcription=""
     tabs = st.tabs(["YouTube Video", "MP3 File"])
-
     with tabs[0]:
         youtube_url = st.text_input("Enter YouTube URL")
         language = None
-
         transcribe_button = st.button("Transcribe",key="url")
+        summary_button = st.button("Summary",key="summary")
 
         if transcribe_button:
            
             #transcribe_button = st.button("Transcribe", disabled=True)  # Disable the button
-            process(youtube_url, language)
+            st.session_state.transcription = process(youtube_url, language)
             #transcribe_button = st.button("Transcribe")  # Enable the button after processing
-            
+        if summary_button:
+            print(st.session_state.transcription)
+            llm = SummaryBedrockHandler(region="us-west-2",content=st.session_state.transcription)
+            response_body = llm.invoke()
+            st.json(st.session_state.transcription)
+            st.write(response_body)
 
     with tabs[1]:
         mp3_file = st.file_uploader("Upload MP3 File", type=["mp3"])
         language = None
         transcribe_mp3_button = st.button("Transcribe",key="mp3")
+
+        summary_button_mp3 = st.button("Summary",key="summary_mp3")
 
         if transcribe_mp3_button:
             progress_text = "Processing MP3 file..."
@@ -107,7 +114,8 @@ def main():
                 tmp_file.write(mp3_file.getvalue())
                 tmp_file_path = tmp_file.name
 
-            transcription = whisperx_transcribe.transcribe(tmp_file_path, "medium", language=language)
+            transcription = whisperx_transcribe.transcribe(tmp_file_path, "large", language=language)
+            st.session_state.transcription=transcription
             st.write(transcription)
             progress_value = 100
             progress_text = "Processing completed..."
@@ -115,6 +123,11 @@ def main():
 
             # Remove the temporary file
             os.unlink(tmp_file_path)
+        if summary_button_mp3:
+            llm = SummaryBedrockHandler(region="us-west-2",content=st.session_state.transcription)
+            response_body = llm.invoke()
+            st.json(st.session_state.transcription)
+            st.write(response_body)
 
 if __name__ == "__main__":
     main()

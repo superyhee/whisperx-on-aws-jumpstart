@@ -38,34 +38,6 @@ class WhisperSQSMessageProcessor(SQSMessageProcessor):
         self.logger.info("The summary info is : %s",response_body)
         return response_body
 
-    # def llm_summary(self,transcription_text):
-    #     self.logger.info("Call LLM to summary the transcripting text...")
-    #     model_id = 'anthropic.claude-3-sonnet-20240229-v1:0'
-    #     system_prompt = """你是一个文案专员，请认真阅读其中的内容<transcription_text>标签中包含的上下文内容，并按照以下要求进行总结
-    #     - 识别 <transcription_text> 中的语言种类，用相同语言进行总结和返回
-    #     - 理解 <transcription_text> 中的主要情节和场景，用精简的语言总结内容
-    #     - 如果 <transcription_text> 中有多个speaker，请分别总结每个人的情感情绪和想要表达的中心思想
-
-    #     以下是上下文:
-    #     <transcription_text>
-    #     {speak_context}
-    #     </transcription_text>
-    #     """
-    #     max_tokens = 1000
-    #     messages = [{"role": "user", "content":"请总结上文"}]
-    #     system_prompt = system_prompt.replace("speak_context",json.dumps(transcription_text))
-    #     body=json.dumps({
-    #             "anthropic_version": "bedrock-2023-05-31",
-    #             "max_tokens": max_tokens,
-    #             "system": system_prompt,
-    #             "messages": messages
-    #         })
-    #     response = self.bedrock_runtime.invoke_model(body=body, modelId=model_id)
-    #     response_body = json.loads(response.get('body').read())
-    #     content = response_body['content'][0]['text']
-    #     self.logger.info("The summary of the transcripting text is : %s",content)
-    #     return content
-
     def transcribe(self, audio_file, message_body,message_receipt_handle):
         self.logger.info(f"Transcribing the audio file : %s",audio_file)
         file_size_mb = os.path.getsize(audio_file) / (1024 * 1024)
@@ -84,10 +56,10 @@ class WhisperSQSMessageProcessor(SQSMessageProcessor):
             bucket_name = message_body['bucket']
             object_key = message_body['key']
             transcription_key = f"{os.path.splitext(object_key)[0]}.json"
-            self.s3.put_object(Body=json.dumps(transcription_text).encode('utf-8'), Bucket=bucket_name, Key=transcription_key)
+            self.s3.put_object(Body=json.dumps(transcription_text,ensure_ascii=False), Bucket=bucket_name, Key=transcription_key)
             self.logger.info("Uploaded transcription text to s3://%s/%s",bucket_name,transcription_key)
 
-        # 判断message中的tags,如果tags中存在Summery的tag，则调用llm_summary方法对transcription内容进行总结
+        # 判断message中的tags,如果tags中存在summary的tag，则调用llm_summary方法对transcription内容进行总结
         if 'summary' in message_body.get('tags', []):
             summary = self.llm_summary(transcription_text)
             summary_key = f"{os.path.splitext(object_key)[0]}.txt"
@@ -116,6 +88,7 @@ class WhisperSQSMessageProcessor(SQSMessageProcessor):
         else:
             self.logger.info("Unsupported file type: %s",file_extension)
 if __name__ == '__main__':
-    queue_url = 'https://sqs.us-west-2.amazonaws.com/091063646508/sqs-queue-whisper'
+    # queue_url = 'https://sqs.us-west-2.amazonaws.com/091063646508/sqs-queue-whisper'
+    queue_url = sys.argv[1]
     processor = WhisperSQSMessageProcessor(queue_url, max_number_of_messages=1, wait_time_seconds=20)
     processor.process()

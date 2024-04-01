@@ -1,6 +1,7 @@
 import whisperx
 import gc
 import os
+import time
 
 device = "cuda"
 compute_type = "float16" # change to "int8" if low on GPU mem (may reduce accuracy)
@@ -8,8 +9,10 @@ compute_type = "float16" # change to "int8" if low on GPU mem (may reduce accura
 # 3. Assign speaker labels
 # diarize_model = whisperx.DiarizationPipeline(use_auth_token=os.environ['HF_TOKEN'], device=device)
 
-diarize_model = whisperx.DiarizationPipeline("pyannote/speaker-diarization-3.1",use_auth_token="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", device=device)
+diarize_model = whisperx.DiarizationPipeline("pyannote/speaker-diarization-3.1",use_auth_token=os.environ['HF_TOKEN'], device=device)
 whisper_models = {}
+model_a = {}
+metadata = {}
 
 def convert_format(data):
     result = []
@@ -49,7 +52,11 @@ def transcribe(audio_file, model_needed, language=None):
     transcribe_args = {}
     if language != None:
         transcribe_args["language"] = language
+    start_time = time.time()
     result = model.transcribe(audio, batch_size=batch_size)
+    transcribe_time = time.time()
+    execution_time = transcribe_time - start_time
+    print(f"transcribe_time: {execution_time} seconds")
     #print(result["segments"]) # before alignment
 
     # delete model if low on GPU resources
@@ -57,8 +64,15 @@ def transcribe(audio_file, model_needed, language=None):
 
     # 2. Align whisper output
     try:
+        start_time = time.time()
         model_a, metadata = whisperx.load_align_model(language_code=result["language"], device=device)
+        load_align_model_time = time.time()
+        execution_time = load_align_model_time - start_time
+        print(f"load_align_model_time: {execution_time} seconds")
         result = whisperx.align(result["segments"], model_a, metadata, audio, device, return_char_alignments=False)
+        align_time = time.time()
+        execution_time = align_time - load_align_model_time
+        print(f"align_time: {execution_time} seconds")
     except:
         print("Fail to align", result["language"], "lang")
 
