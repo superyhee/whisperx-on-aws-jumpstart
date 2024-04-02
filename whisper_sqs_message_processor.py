@@ -6,6 +6,8 @@ import whisperx_transcribe
 from subprocess import call
 from sqs_message_processor import SQSMessageProcessor
 from bedrock_handler.summary_bedrock_handler import SummaryBedrockHandler
+from dotenv import load_dotenv
+load_dotenv()
 
 class WhisperSQSMessageProcessor(SQSMessageProcessor): 
     def __init__(self, queue_url, max_number_of_messages=20, wait_time_seconds=10):
@@ -88,7 +90,7 @@ class WhisperSQSMessageProcessor(SQSMessageProcessor):
         else:
             self.logger.info("Unsupported file type: %s",file_extension)
 if __name__ == '__main__':
-    # queue_url = 'https://sqs.us-west-2.amazonaws.com/091063646508/sqs-queue-whisper'
-    queue_url = sys.argv[1]
+    # queue_url = sys.argv[1]
+    queue_url = os.environ['SQS_QUEUE_URL']
     processor = WhisperSQSMessageProcessor(queue_url, max_number_of_messages=1, wait_time_seconds=20)
     processor.process()

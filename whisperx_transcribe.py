@@ -2,6 +2,8 @@ import whisperx
 import gc
 import os
 import time
+from dotenv import load_dotenv
+load_dotenv()
 
 device = "cuda"
 compute_type = "float16" # change to "int8" if low on GPU mem (may reduce accuracy)
