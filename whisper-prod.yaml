@@ -253,7 +253,7 @@ Resources:
             After=network.target
             [Service]
             User=ubuntu
-            ExecStart=/bin/bash -c 'sh launch.sh'
+            ExecStart=/bin/bash -c 'sh /home/ubuntu/whisper/launch.sh'
             WorkingDirectory=/home/ubuntu/whisper
             Restart=always
             [Install]
@@ -287,7 +287,7 @@ Resources:
       Port: 8501
       Protocol: TCP
       TargetType: instance
-  MyTargetGroup-api:
+  MyTargetGroupApi:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       VpcId: !Ref MyVPC
@@ -318,13 +318,14 @@ Resources:
     Properties:
       DefaultActions:
         - Type: forward
-          TargetGroupArn: !Ref MyTargetGroup-api
+          TargetGroupArn: !Ref MyTargetGroupApi
       LoadBalancerArn: !Ref MyNetworkLoadBalancer
       Port: 9000
       Protocol: TCP
 
   CloudFrontDist:
     Type: AWS::CloudFront::Distribution
+    DependsOn: MyNetworkLoadBalancer
     Properties:
       DistributionConfig:
         Origins:
@@ -335,7 +336,7 @@ Resources:
               OriginProtocolPolicy: http-only
         Enabled: true
         DefaultCacheBehavior:
-          TargetOriginId: myEC2Origin
+          TargetOriginId: streamlitOrigin
           ViewerProtocolPolicy: allow-all
           AllowedMethods:
             - DELETE
@@ -388,7 +389,6 @@ Parameters:
       - g5.24xlarge
   HuggingFaceToken:
     Type: String
-    Default: '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'
     Description: Hugging Face token for authentication
   BucketName:
     Type: String
