@@ -159,7 +159,7 @@ Resources:
               bucket_name = event['Records'][0]['s3']['bucket']['name']
               file_key = urllib.parse.unquote_plus(event['Records'][0]['s3']['object']['key'], encoding='utf-8')
 
-              queue_url = 'https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/whisper-queue'
+              queue_url = "https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/whisper-queue"
 
               try:
                   # 判断文件后缀，如果文件不是以 .mp3 .mp4 .m4a 结尾的，则直接return
@@ -230,7 +230,7 @@ Resources:
           'Fn::Base64': !Sub |
             #!/bin/bash
             sudo apt update
-            sudo apt install -y python3-pip nvidia-driver-525 ffmpeg git nvidia-cuda-toolkit
+            sudo apt install -y python3-pip nvidia-driver-525 ffmpeg git nvidia-cuda-toolkit awscli
             git clone https://github.com/yanjun-ios/whisper-on-aws-jumpstart /home/ubuntu/whisper
             cd /home/ubuntu/whisper
             pip3 install -r requirements.txt
@@ -240,8 +240,8 @@ Resources:
             echo "LAUNCH_DEMO=${LaunchDemo}" >> /home/ubuntu/whisper/.env
             echo "LAUNCH_EVENT=${LaunchEvent}" >> /home/ubuntu/whisper/.env
             echo "BUCKET_NAME=${BucketName}" >> /home/ubuntu/whisper/.env
-            echo "LAMBDA_NAME"=whisper-s3-event-${AWS::AccountId}" >> /home/ubuntu/whisper/.env
-            echo "SQS_QUEUE_URL=$(aws sqs get-queue-url --queue-name whisper-queue --region ${AWS::Region} --output text --query QueueUrl)"
+            echo "LAMBDA_NAME=whisper-s3-event-${AWS::AccountId}" >> /home/ubuntu/whisper/.env
+            echo "SQS_QUEUE_URL=$(aws sqs get-queue-url --queue-name whisper-queue --region ${AWS::Region} --output text --query QueueUrl)" >> /home/ubuntu/whisper/.env
             echo "------Install Finished ------"
             # Add permissions to whisper directory
             sudo chown -R ubuntu:ubuntu /home/ubuntu/whisper/
@@ -287,6 +287,13 @@ Resources:
       Port: 8501
       Protocol: TCP
       TargetType: instance
+  MyTargetGroup-api:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref MyVPC
+      Port: 9000
+      Protocol: TCP
+      TargetType: instance
 
   MyNetworkLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -311,17 +318,45 @@ Resources:
     Properties:
       DefaultActions:
         - Type: forward
-          TargetGroupArn: !Ref MyTargetGroup
+          TargetGroupArn: !Ref MyTargetGroup-api
       LoadBalancerArn: !Ref MyNetworkLoadBalancer
       Port: 9000
       Protocol: TCP
-        
+
+  CloudFrontDist:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+          - DomainName: !GetAtt MyNetworkLoadBalancer.DNSName
+            Id: streamlitOrigin
+            CustomOriginConfig:
+              HTTPPort: 8501
+              OriginProtocolPolicy: http-only
+        Enabled: true
+        DefaultCacheBehavior:
+          TargetOriginId: myEC2Origin
+          ViewerProtocolPolicy: allow-all
+          AllowedMethods:
+            - DELETE
+            - GET
+            - HEAD
+            - OPTIONS
+            - PATCH
+            - POST
+            - PUT
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+          ForwardedValues:
+            QueryString: false
 Outputs:
   LoadBalancerDNS:
     Description: The DNS name of the Network Load Balancer
     Value: !GetAtt MyNetworkLoadBalancer.DNSName
     Export:
       Name: MyLoadBalancerDNS
+  CloudFrontDomainName:
+    Value: !GetAtt CloudFrontDist.DomainName
 
 Mappings:
   RegionMap:
