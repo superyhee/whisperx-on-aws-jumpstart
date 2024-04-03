@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Whisper on EC2 with S3, SQS and Lambda
+Description: Whisper on EC2 with S3, SQS, Lambda, and Auto Scaling
 
 Resources:
   MyVPC:
@@ -29,6 +29,7 @@ Resources:
       CidrBlock: "10.0.1.0/24"
       VpcId: !Ref MyVPC
       AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
           Value: "My Public Subnet"
@@ -70,9 +71,38 @@ Resources:
           FromPort: 8501
           ToPort: 8501
           CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 9000
+          ToPort: 9000
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          CidrIp: 0.0.0.0/0
 
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+  MyInstanceProfile: 
+    Type: "AWS::IAM::InstanceProfile"
+    Properties: 
+      Path: "/"
+      Roles: 
+        - !Ref InstanceRole
   MyS3Bucket:
     Type: AWS::S3::Bucket
+    DependsOn: LambdaPermission
     Properties:
       BucketName: !Sub 'whisper-bucket-${AWS::AccountId}'
 
@@ -167,109 +197,147 @@ Resources:
       Handler: index.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: python3.10
+      FunctionName: !Sub 'whisper-s3-event-${AWS::AccountId}'
 
   LambdaPermission:
     Type: AWS::Lambda::Permission
+    DependsOn: LambdaFunction
     Properties:
       FunctionName: !GetAtt LambdaFunction.Arn
       Action: 'lambda:InvokeFunction'
       Principal: s3.amazonaws.com
-      SourceAccount: !Ref AWS::AccountId
+      SourceAccount: !Ref 'AWS::AccountId'
+      SourceArn: !Sub 'arn:aws:s3:::${BucketName}'
 
-  S3BucketNotification:
-    Type: AWS::S3::BucketNotification
+  MyAutoScalingLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
     Properties:
-      Bucket: !Ref MyS3Bucket
-      LambdaFunctionConfigurations:
-        - Event: s3:ObjectCreated:*
-          Function: !GetAtt LambdaFunction.Arn
+      LaunchTemplateName: MyAutoScalingLaunchTemplate
+      LaunchTemplateData:
+        ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", AMI]
+        InstanceType: !Ref InstanceType
+        KeyName: !Ref KeyPairName
+        SecurityGroupIds: 
+          - !Ref MySecurityGroup
+        IamInstanceProfile:
+          Arn: !GetAtt MyInstanceProfile.Arn
+        BlockDeviceMappings:
+          - DeviceName: /dev/sda1
+            Ebs:
+              VolumeSize: 100
+              VolumeType: gp3
+        UserData:
+          'Fn::Base64': !Sub |
+            #!/bin/bash
+            sudo apt update
+            sudo apt install -y python3-pip nvidia-driver-525 ffmpeg git nvidia-cuda-toolkit
+            git clone https://github.com/yanjun-ios/whisper-on-aws-jumpstart /home/ubuntu/whisper
+            cd /home/ubuntu/whisper
+            pip3 install -r requirements.txt
+            # Setup environment  
+            echo "HF_TOKEN=${HuggingFaceToken}" >> /home/ubuntu/whisper/.env
+            echo "LAUNCH_API=${LaunchAPI}" >> /home/ubuntu/whisper/.env
+            echo "LAUNCH_DEMO=${LaunchDemo}" >> /home/ubuntu/whisper/.env
+            echo "LAUNCH_EVENT=${LaunchEvent}" >> /home/ubuntu/whisper/.env
+            echo "BUCKET_NAME=${BucketName}" >> /home/ubuntu/whisper/.env
+            echo "LAMBDA_NAME"=whisper-s3-event-${AWS::AccountId}" >> /home/ubuntu/whisper/.env
+            echo "SQS_QUEUE_URL=$(aws sqs get-queue-url --queue-name whisper-queue --region ${AWS::Region} --output text --query QueueUrl)"
+            echo "------Install Finished ------"
+            # Add permissions to whisper directory
+            sudo chown -R ubuntu:ubuntu /home/ubuntu/whisper/
+            sudo chmod -R 755 /home/ubuntu/whisper/
+            # Create systemd service
+            sudo tee /etc/systemd/system/whisper.service > /dev/null <<EOF
+            [Unit]
+            Description=Whisper Service
+            After=network.target
+            [Service]
+            User=ubuntu
+            ExecStart=/bin/bash -c 'sh launch.sh'
+            WorkingDirectory=/home/ubuntu/whisper
+            Restart=always
+            [Install]
+            WantedBy=multi-user.target
+            EOF
+            # Reload systemd and enable service
+            sudo systemctl daemon-reload
+            sudo systemctl enable whisper.service
+            # Start the service
+            sudo systemctl start whisper.service
+            sudo reboot
 
-  MyInstance:
-    Type: AWS::EC2::Instance
-    DeletionPolicy: Retain
+  MyAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
-      InstanceType: !Ref InstanceType
-      ImageId: !Ref InstanceAMI
-      BlockDeviceMappings:
-        - DeviceName: /dev/sda1
-          Ebs:
-            VolumeSize: 100
-            VolumeType: gp3
-      Tags:
-        - Key: Name
-          Value: whisper
-      KeyName: !Ref KeyPairName
-      NetworkInterfaces:
-        - DeviceIndex: 0
-          AssociatePublicIpAddress: true
-          SubnetId: !Ref MyPublicSubnet
-          GroupSet:
-            - !Ref MySecurityGroup
-      UserData:
-        'Fn::Base64': !Sub |
-          #!/bin/bash
-          sudo apt update
-          sudo apt install -y python3-pip nvidia-driver-525 ffmpeg git nvidia-cuda-toolkit
-          git clone https://github.com/yanjun-ios/whisper-on-aws-jumpstart /home/ubuntu/whisper
-          cd /home/ubuntu/whisper
-          pip3 install -r requirements.txt
-          # Setup environment  
-          echo "HF_TOKEN=${HuggingFaceToken}" >> /home/ubuntu/whisper/.env
-          echo "LAUNCH_API=${LaunchAPI}" >> /home/ubuntu/whisper/.env
-          echo "LAUNCH_DEMO=${LaunchDemo}" >> /home/ubuntu/whisper/.env
-          echo "LAUNCH_EVENT=${LaunchEvent}" >> /home/ubuntu/whisper/.env
-          echo "SQS_QUEUE_URL=$(aws sqs get-queue-url --queue-name whisper-queue --region ${AWS::Region} --output text --query QueueUrl)"
-          echo "------Install Finished ------"
-          # Add permissions to whisper directory
-          sudo chown -R ubuntu:ubuntu /home/ubuntu/whisper/
-          sudo chmod -R 755 /home/ubuntu/whisper/
-          # Create systemd service
-          sudo tee /etc/systemd/system/whisper.service > /dev/null <<EOF
-          [Unit]
-          Description=Whisper Service
-          After=network.target
-          [Service]
-          User=ubuntu
-          ExecStart=/bin/bash -c 'sh launch.sh'
-          WorkingDirectory=/home/ubuntu/whisper
-          Restart=always
-          [Install]
-          WantedBy=multi-user.target
-          EOF
-          # Reload systemd and enable service
-          sudo systemctl daemon-reload
-          sudo systemctl enable whisper.service
-          # Start the service
-          sudo systemctl start whisper.service
-          sudo reboot
+      VPCZoneIdentifier: 
+        - !Ref MyPublicSubnet
+      LaunchTemplate:
+        LaunchTemplateId: !Ref MyAutoScalingLaunchTemplate
+        Version: !GetAtt MyAutoScalingLaunchTemplate.LatestVersionNumber
+      MinSize: 1
+      MaxSize: 4
+      DesiredCapacity: 1
+      TargetGroupARNs:
+        - !Ref MyTargetGroup
 
-  MyEIP:
-    Type: AWS::EC2::EIP
-
-  MyEIPAssociation:
-    Type: AWS::EC2::EIPAssociation
+  MyTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      InstanceId: !Ref MyInstance
-      EIP: !Ref MyEIP
+      VpcId: !Ref MyVPC
+      Port: 8501
+      Protocol: TCP
+      TargetType: instance
 
+  MyNetworkLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Subnets:
+        - !Ref MyPublicSubnet
+      Type: network
+        
+  MyListener8501:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref MyTargetGroup
+      LoadBalancerArn: !Ref MyNetworkLoadBalancer
+      Port: 8501
+      Protocol: TCP
+
+  MyListener9000:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref MyTargetGroup
+      LoadBalancerArn: !Ref MyNetworkLoadBalancer
+      Port: 9000
+      Protocol: TCP
+        
 Outputs:
-  ElasticIP:
-    Description: The Elastic IP address
-    Value: !Ref MyEIP
+  LoadBalancerDNS:
+    Description: The DNS name of the Network Load Balancer
+    Value: !GetAtt MyNetworkLoadBalancer.DNSName
     Export:
-      Name: MyElasticIP
+      Name: MyLoadBalancerDNS
+
+Mappings:
+  RegionMap:
+    us-west-1:
+      AMI: 'ami-080e1f13689e07408'
+    us-west-2:
+      AMI: 'ami-08116b9957a259459'
 
 Parameters:
-  InstanceAMI:
-    Type: AWS::EC2::Image::Id
-    Description: ID of the AMI to use for the EC2 instance 
   KeyPairName:
     Type: AWS::EC2::KeyPair::KeyName
     Description: Name of the SSH key pair to use for the EC2 instance   
   InstanceType:
     Type: String
     Description: EC2 instance type
-    Default: g4dn.xlarge
+    Default: g5.xlarge
     AllowedValues:
       - g4dn.xlarge
       - g4dn.2xlarge
@@ -285,16 +353,30 @@ Parameters:
       - g5.24xlarge
   HuggingFaceToken:
     Type: String
+    Default: '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'
     Description: Hugging Face token for authentication
-  LAUNCH_API:
-    Type: Bool
-    Default: True
+  BucketName:
+    Type: String
+    Default: 'whisper-bucket-${AWS::AccountId}'
+    Description: The Bucket Name for trigger the event
+  LaunchAPI:
+    Type: String
+    Default: 'True'
+    AllowedValues:
+      - 'True'
+      - 'False'
     Description: If launch the api for check the output files
-  LAUNCH_DEMO:
-    Type: Bool
-    Default: True
+  LaunchDemo:
+    Type: String
+    Default: 'True'
+    AllowedValues:
+      - 'True'
+      - 'False'
     Description: If launch the demo ui
-  LAUNCH_EVENT:
-    Type: Bool
-    Default: True
+  LaunchEvent:
+    Type: String
+    Default: 'True'
+    AllowedValues:
+      - 'True'
+      - 'False'
     Description: If launch the event handler work flow
