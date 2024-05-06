@@ -279,6 +279,7 @@ Resources:
       DesiredCapacity: 1
       TargetGroupARNs:
         - !Ref MyTargetGroup
+        - !Ref MyTargetGroupApi
 
   MyTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
