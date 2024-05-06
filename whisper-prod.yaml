@@ -323,7 +323,55 @@ Resources:
       LoadBalancerArn: !Ref MyNetworkLoadBalancer
       Port: 9000
       Protocol: TCP
+  QueueLengthScaleUpPolicy: 
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref MyAutoScalingGroup  
+      Cooldown: 60
+      ScalingAdjustment: 1 # 每次扩展或缩减的实例数量
 
+  QueueLengthScaleDownPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref MyAutoScalingGroup
+      Cooldown: 60
+      ScalingAdjustment: -1
+
+  ScaleUpAlarmNotification:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: 'Queue length is greater than the threshold'
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Average    
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      AlarmActions:
+        - !Ref QueueLengthScaleUpPolicy
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt MySQSQueue.QueueName
+      ComparisonOperator: GreaterThanThreshold
+
+  ScaleDownAlarmNotification:
+    Type: AWS::CloudWatch::Alarm  
+    Properties:
+      AlarmDescription: 'Queue length is lower than the threshold'
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 5
+      AlarmActions:
+        - !Ref QueueLengthScaleDownPolicy
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt MySQSQueue.QueueName  
+      ComparisonOperator: LessThanThreshold
   CloudFrontDist:
     Type: AWS::CloudFront::Distribution
     DependsOn: MyNetworkLoadBalancer
@@ -394,7 +442,7 @@ Parameters:
   BucketName:
     Type: String
     Default: 'whisper-bucket-${AWS::AccountId}'
-    Description: The Bucket Name for trigger the event
+    Description: The Bucket Name for trigger the event,pls replace the ${AWS::AccountId} with your accountid number
   LaunchAPI:
     Type: String
     Default: 'True'
