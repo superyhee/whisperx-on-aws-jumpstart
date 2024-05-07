@@ -6,6 +6,7 @@ import whisperx_transcribe
 from subprocess import call
 from sqs_message_processor import SQSMessageProcessor
 from bedrock_handler.summary_bedrock_handler import SummaryBedrockHandler
+from bedrock_handler.audit_bedrock_handler import AuditBedrockHandler
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -40,6 +41,12 @@ class WhisperSQSMessageProcessor(SQSMessageProcessor):
         self.logger.info("The summary info is : %s",response_body)
         return response_body
 
+    def llm_audit(self,transcription_text):
+        llm = AuditBedrockHandler(region=self.region,content=transcription_text)
+        response_body = llm.invoke()
+        self.logger.info("The audit info is : %s",response_body)
+        return response_body
+
     def transcribe(self, audio_file, message_body,message_receipt_handle):
         self.logger.info(f"Transcribing the audio file : %s",audio_file)
         file_size_mb = os.path.getsize(audio_file) / (1024 * 1024)
@@ -67,6 +74,12 @@ class WhisperSQSMessageProcessor(SQSMessageProcessor):
             summary_key = f"{os.path.splitext(object_key)[0]}.txt"
             self.s3.put_object(Body=summary.encode('utf-8'), Bucket=bucket_name, Key=summary_key)
             self.logger.info("Uploaded summary to s3://%s/%s",bucket_name,summary_key)
+        # 判断message中的tags,如果tags中存在audit的tag，则调用llm_audit方法对transcription内容进行总结
+        if 'audit' in message_body.get('tags', []):
+            audit = self.llm_audit(transcription_text)
+            audit_key = f"{os.path.splitext(object_key)[0]}-audit.txt"
+            self.s3.put_object(Body=summary.encode('utf-8'), Bucket=bucket_name, Key=audit_key)
+            self.logger.info("Uploaded audit file to s3://%s/%s",bucket_name,audit_key)
     
     # 实现抽象方法，处理业务逻辑
     def process_message(self, message):

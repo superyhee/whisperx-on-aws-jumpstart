@@ -150,6 +150,7 @@ Resources:
           import json
           import boto3
           import urllib.parse
+          import os
 
           s3 = boto3.client('s3')
           sqs = boto3.client('sqs')
@@ -159,7 +160,7 @@ Resources:
               bucket_name = event['Records'][0]['s3']['bucket']['name']
               file_key = urllib.parse.unquote_plus(event['Records'][0]['s3']['object']['key'], encoding='utf-8')
 
-              queue_url = "https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/whisper-queue"
+              queue_url = os.environ['QUEUE_URL']
 
               try:
                   # 判断文件后缀，如果文件不是以 .mp3 .mp4 .m4a 结尾的，则直接return
@@ -197,6 +198,9 @@ Resources:
       Handler: index.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: python3.10
+      Environment:
+        Variables:
+          QUEUE_URL: !Sub "https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/whisper-queue"
       FunctionName: !Sub 'whisper-s3-event-${AWS::AccountId}'
 
   LambdaPermission:
