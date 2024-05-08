@@ -80,6 +80,8 @@ def main():
     st.title("Audio Transcription")
     if 'transcription' not in st.session_state:
         st.session_state.transcription=""
+    if 'btn_disabled' not in st.session_state:
+        st.session_state.btn_disabled = True
     tabs = st.tabs(["YouTube Video", "MP3 File"])
     with tabs[0]:
         youtube_url = st.text_input("Enter YouTube URL")
@@ -90,14 +92,14 @@ def main():
             with col1:
                 transcribe_button = st.button("Transcribe", key="url")
             with col2:
-                summary_button = st.button("Summary", key="summary")
+                summary_button = st.button("Summary", key="summary",disabled=st.session_state.btn_disabled)
             with col3:
-                audit_button = st.button("Audit", key="audit")
-
+                audit_button = st.button("Audit", key="audit",disabled=st.session_state.btn_disabled)
+        st.write(st.session_state.transcription)
         if transcribe_button:
-            #transcribe_button = st.button("Transcribe", disabled=True)  # Disable the button
             st.session_state.transcription = process(youtube_url, language)
-            #transcribe_button = st.button("Transcribe")  # Enable the button after processing
+            st.session_state.btn_disabled = False
+            st.experimental_rerun()
         if summary_button:
             print(st.session_state.transcription)
             llm = SummaryBedrockHandler(region="us-west-2",content=st.session_state.transcription)
@@ -142,6 +144,7 @@ def main():
 
             # Remove the temporary file
             os.unlink(tmp_file_path)
+            st.experimental_rerun()
         if summary_mp3_button:
             llm = SummaryBedrockHandler(region="us-west-2",content=st.session_state.transcription)
             response_body = llm.invoke()
