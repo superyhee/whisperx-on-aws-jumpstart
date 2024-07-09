@@ -101,9 +101,10 @@ def main():
     with tabs[1]:
         mp3_file = st.file_uploader("Upload MP3 File", type=["mp3"])
         language = None
-        transcribe_mp3_button = st.button("Transcribe",key="mp3")
+        transcribe_mp3_button_disabled = True if not mp3_file else False
+        transcribe_mp3_button = st.button("Transcribe", key="mp3", disabled=transcribe_mp3_button_disabled)
+        summary_button_mp3 = st.button("Summary", key="summary_mp3", disabled=transcribe_mp3_button_disabled)
 
-        summary_button_mp3 = st.button("Summary",key="summary_mp3")
 
         if transcribe_mp3_button:
             progress_text = "Processing MP3 file..."
