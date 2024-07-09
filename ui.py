@@ -66,7 +66,7 @@ def process(youtube_url, language):
     progress_text = "Transcribing audio..."
     progress_value = 70
     progress_bar.progress(progress_value, text=progress_text)
-    transcription = whisperx_transcribe.transcribe(audio_file_mp3, "large", language=language)
+    transcription = whisperx_transcribe.transcribe(audio_file_mp3, "large-v3", language=language)
     progress_text = "Transcribing completed..."
     progress_value = 100
     progress_bar.progress(progress_value, text=progress_text)
