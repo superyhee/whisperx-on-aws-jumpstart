@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 from bedrock_handler.summary_bedrock_handler import SummaryBedrockHandler
+from bedrock_handler.audit_bedrock_handler import AuditBedrockHandler
 load_dotenv()
 
 
@@ -79,39 +80,58 @@ def main():
     st.title("Audio Transcription")
     if 'transcription' not in st.session_state:
         st.session_state.transcription=""
+    if 'btn_disabled' not in st.session_state:
+        st.session_state.btn_disabled = True
     tabs = st.tabs(["YouTube Video", "MP3 File"])
     with tabs[0]:
         youtube_url = st.text_input("Enter YouTube URL")
         language = None
-        transcribe_button = st.button("Transcribe",key="url")
-        summary_button = st.button("Summary",key="summary")
-
+        button_container = st.container()
+        with button_container:
+            col1, col2, col3 = st.columns([1, 1, 1])
+            with col1:
+                transcribe_button = st.button("Transcribe", key="url")
+            with col2:
+                summary_button = st.button("Summary", key="summary",disabled=st.session_state.btn_disabled)
+            with col3:
+                audit_button = st.button("Audit", key="audit",disabled=st.session_state.btn_disabled)
+        st.write(st.session_state.transcription)
         if transcribe_button:
-           
-            #transcribe_button = st.button("Transcribe", disabled=True)  # Disable the button
             st.session_state.transcription = process(youtube_url, language)
-            #transcribe_button = st.button("Transcribe")  # Enable the button after processing
+            st.session_state.btn_disabled = False
+            st.experimental_rerun()
         if summary_button:
             print(st.session_state.transcription)
             llm = SummaryBedrockHandler(region="us-west-2",content=st.session_state.transcription)
             response_body = llm.invoke()
-            st.json(st.session_state.transcription)
+            #st.json(st.session_state.transcription)
             st.write(response_body)
-
+        if audit_button:
+            print(st.session_state.transcription)
+            llm = AuditBedrockHandler(region="us-west-2",content=st.session_state.transcription)
+            response_body = llm.invoke()
+            #st.json(st.session_state.transcription)
+            st.write(response_body)
     with tabs[1]:
-        mp3_file = st.file_uploader("Upload MP3 File", type=["mp3"])
+        mp3_file = st.file_uploader("Upload MP3 File", type=["mp3","m4a"])
         language = None
-        transcribe_mp3_button_disabled = True if not mp3_file else False
-        transcribe_mp3_button = st.button("Transcribe", key="mp3", disabled=transcribe_mp3_button_disabled)
-        summary_button_mp3 = st.button("Summary", key="summary_mp3", disabled=transcribe_mp3_button_disabled)
-
+        button_container = st.container()
+        with button_container:
+            col1, col2, col3 = st.columns([1, 1, 1])
+            with col1:
+                transcribe_mp3_button = st.button("Transcribe", key="mp3")
+            with col2:
+                summary_mp3_button = st.button("Summary", key="summary_mp3")
+            with col3:
+                audit_mp3_button = st.button("Audit", key="audit_mp3")
 
         if transcribe_mp3_button:
             progress_text = "Processing MP3 file..."
             progress_value = 10
             progress_bar = st.progress(progress_value, text=progress_text)
             # Save the uploaded file to a temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
+            file_extension = mp3_file.name.split('.')[-1]
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file_extension}") as tmp_file:
                 tmp_file.write(mp3_file.getvalue())
                 tmp_file_path = tmp_file.name
 
@@ -124,10 +144,17 @@ def main():
 
             # Remove the temporary file
             os.unlink(tmp_file_path)
-        if summary_button_mp3:
+            st.experimental_rerun()
+        if summary_mp3_button:
             llm = SummaryBedrockHandler(region="us-west-2",content=st.session_state.transcription)
             response_body = llm.invoke()
-            st.json(st.session_state.transcription)
+            #st.json(st.session_state.transcription)
+            st.write(response_body)
+        if audit_mp3_button:
+            print(st.session_state.transcription)
+            llm = AuditBedrockHandler(region="us-west-2",content=st.session_state.transcription)
+            response_body = llm.invoke()
+            #st.json(st.session_state.transcription)
             st.write(response_body)
 
 if __name__ == "__main__":

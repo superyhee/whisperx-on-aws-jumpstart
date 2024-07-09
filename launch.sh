@@ -49,7 +49,7 @@ start_api_server() {
     local start_api=$(read_env_var "LAUNCH_API")
     if [ "$start_api" = "True" ]; then
         echo "Starting the API server"
-        nohup uvicorn api:app --host 0.0.0.0 --reload &>/dev/null &
+        nohup uvicorn api:app --host 0.0.0.0 --port 9000 --reload &>/dev/null &
     fi
 }
 
@@ -76,3 +76,5 @@ add_notification_for_s3
 start_api_server
 start_demo
 start_event_workflow
+
+wait
