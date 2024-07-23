@@ -68,6 +68,19 @@ Resources:
           ToPort: 8501
           CidrIp: 0.0.0.0/0
 
+  MyInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
   MyInstance:
     Type: AWS::EC2::Instance
     DeletionPolicy: Retain
@@ -83,9 +96,7 @@ Resources:
             {"Key" : "Name", "Value" : "whisper"},
         ]
       KeyName: !Ref KeyPairName
-      # SecurityGroupIds:
-      #   - !Ref MySecurityGroup
-      # SubnetId: !Ref MyPublicSubnet
+      IamInstanceProfile: !Ref MyInstanceRole
       NetworkInterfaces:
         - DeviceIndex: 0
           AssociatePublicIpAddress: true
@@ -125,6 +136,7 @@ Resources:
           # Start the service
           sudo systemctl start whisper.service
           sudo reboot
+
   MyEIP:
     Type: AWS::EC2::EIP
 
@@ -144,10 +156,10 @@ Outputs:
 Parameters:
   InstanceAMI:
     Type: AWS::EC2::Image::Id
-    Description: ID of the AMI to use for the EC2 instance 
+    Description: ID of the AMI to use for the EC2 instance
   KeyPairName:
     Type: AWS::EC2::KeyPair::KeyName
-    Description: Name of the SSH key pair to use for the EC2 instance   
+    Description: Name of the SSH key pair to use for the EC2 instance
   InstanceType:
     Type: String
     Description: EC2 instance type
