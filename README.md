@@ -1,93 +1,85 @@
-# Whisper on EC2 jumpstart
+# Whisper on EC2 Jumpstart
 
 **Introduction:**
 
-Through Cloudformation on AWS, create a VPC network environment with one click, and deploy an Whisper model within it to run UI based on Streamlit.
+Through CloudFormation on AWS, create a VPC network environment with a single click, and deploy a Whisper model within it to run a UI based on Streamlit.
 
 **Project Includes:**
 
-- **ui.py**: A Python application based on Streamlit, providing a simple Web interface to use the whisperx model, converting audio to txt.
+- **ui.py**: A Python application based on Streamlit, providing a simple Web interface to use the Whisper model for converting audio to text.
+- **api.py**: A FastAPI application, providing an API to query the result file from the S3 bucket.
+- **whisper_sqs_message_processor.py**: A Python consumer application to handle messages from the AWS SQS queue. The event message will be pushed to the SQS queue after files are uploaded to the S3 bucket.
+- **whisper-prod.yaml**: An AWS CloudFormation YAML file that automatically install the service.
 
-- **whisper.yaml**: An AWS Cloudformation YAML file that automatically provides AWS G4 instances and installs Nvidia drivers and whisperx related libraries to run `ui.py`.
+**Installation Guide:**
 
-**Install guide：**
+- Accept the user agreement for the following models (click through the links below and accept the terms):
 
-- Accept the user agreement for the following models (click through the links bellow and accept the terms):
+  1. [Segmentation](https://huggingface.co/pyannote/segmentation)
+  2. [Voice Activity Detection (VAD)](https://huggingface.co/pyannote/voice-activity-detection)
+  3. [Speaker Diarization](https://huggingface.co/pyannote/speaker-diarization-3.1)
+- Set a Hugging Face access token
+  ![Image 9](images/huggenface.png)
 
-  1.  [Segmentation](https://huggingface.co/pyannote/segmentation)
-  1.  [Voice Activity Detection (VAD)](https://huggingface.co/pyannote/voice-activity-detection)
-  1.  [Speaker Diarization](https://huggingface.co/pyannote/speaker-diarization-3.1).
+- Create a new EC2 key pair through the AWS Console.
 
-- Create life EC2 keypair through AWS Console.
+  ![Image 10](images/keypair.png)
 
-  ![图 9](images/keypair.png)
+- Create a stack in the CloudFormation console.
 
-- Find the ami id through the console interface:
+  ![Image 7](images/cloudformation.png)
 
-  ![图 7](images/ami.png)
+- Set the parameters for the project.
 
-- Create stack in cloudformation console
+  ![Image 10](images/cloudformation_parameters.png)
 
-  ![图 7](images/cf.png)
+- Note the CloudFront domain name for the UI demo and the Network Load Balancer domain name for the API.
 
-- Set parameter of the project
+  ![Image 3](images/cloudformation_output.png)
 
-  ![图 10](images/parameter.png)
+- Wait around 10 minutes for the EC2 instance to initialize the environment.
 
-- Output IP address after installation:
-
-  ![图 3](images/output.png)
-
-- Wait around 10 minutes for the EC2 instance to initialize the environment and install the diffusion library.
-
-- Connect to the EC2 instance via SSH and run
-
-```
-tail -f /var/log/cloud-init-output.log
-```
-
-to check the installation progress.
-
-- Connect to the EC2 instance via SSH and
+- Access the CloudFront domain name
 
 ```
-run nvidia-smi
-```
-
-You should see the NVIDIA system management interface
-
-![图 8](images/nvidia.png)
-
-- Navigate to the whisper directory. The python3 ui.py service is already running by default. You can stop the service with sudo systemctl stop myapp.service.
-
-- Access the output ip address
-
-```
-http://{ip_address}:8501
+http://{cloudfrontDomainName}
 ```
 
 to see the UI.
 
-![图 6](images/output.png)
-
-- Stop the background service with
-
-```
- sudo systemctl stop whisper.service
-```
-
-- Start the background service with
-
-```
- sudo systemctl start whisper.service
-```
+![Image 6](images/ui.png)
 
 ##### UI Guide:
 
-- Auto download and transcribe youtube to text
+- Auto-download and transcribe YouTube videos to text.
 
-  ![图 3](images/youtube_transcribe.png)
+  ![Image 3](images/youtube_transcribe1.png)
 
-- Upload mp3 and transcribe to text
+- Summarize the transcription result with Claude3.
 
-  ![图 3](images/audio_transcribe.png)
+  ![Image 3](images/youtube_summary.png)
+
+- Audit the transcription result with Claude3.
+
+  ![Image 3](images/youtube_audit.png)
+
+- Upload an MP3 file and transcribe it to text.
+
+  ![Image 3](images/audio_transcribe.png)
+
+##### S3 Guide:
+- Upload video files to the S3 bucket.
+  ![Image 3](images/s3_upload.png)
+
+- You can tag the file before uploading it, as shown below.
+  ![Image 3](images/s3_tags.png)
+
+- Wait around 3 minutes, and the transcription file, summary file, and audit file will be automatically uploaded to the bucket.
+  ![Image 3](images/s3_result.png)
+
+##### API Guide:
+- You can use the API to check if the transcription file exists in the bucket.
+  
+  ```
+  curl http://whispe-xxxx.elb.us-west-2.amazonaws.com:9000/check_files?file_path=s3://whisper-bucket-xxx/test.mp4
+  ```
